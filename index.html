@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 系统可视化演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 16px;
+            font-size: 1.5rem;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .chunk-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .chunk-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .chunk-item .id {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 4px;
+        }
+
+        .chunk-item .content {
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .chunk-item .score {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .answer-box {
+            background: #f8f9fa;
+            padding: 16px;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            color: #667eea;
+            margin-top: 12px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .status-badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            padding: 12px;
+            background: #e0e0e0;
+            border-radius: 8px;
+            margin: 0 4px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .step.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .step.completed {
+            background: #28a745;
+            color: white;
+        }
+
+        #message {
+            text-align: center;
+            margin-top: 12px;
+            padding: 8px;
+            border-radius: 8px;
+            display: none;
+        }
+
+        #message.show {
+            display: block;
+        }
+
+        #message.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        #message.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 RAG 系统可视化演示</h1>
+
+        <!-- 步骤指示器 -->
+        <div class="card">
+            <div class="step-indicator">
+                <div class="step" id="step-1">1. 加载文档</div>
+                <div class="step" id="step-2">2. 分片 & 索引</div>
+                <div class="step" id="step-3">3. 召回</div>
+                <div class="step" id="step-4">4. 重排</div>
+                <div class="step" id="step-5">5. 生成答案</div>
+            </div>
+        </div>
+
+        <!-- 文档加载 -->
+        <div class="card">
+            <h2>📄 步骤 1: 加载文档</h2>
+            <p>加载 doc.md 文件并进行分片处理</p>
+            <div class="btn-group">
+                <button class="btn" id="load-btn" onclick="loadDocument()">加载文档</button>
+                <button class="btn" id="reset-btn" onclick="resetState()" style="background: #dc3545;">重置</button>
+            </div>
+            <div id="message"></div>
+            <div class="loading" id="load-loading">加载中...</div>
+        </div>
+
+        <!-- 文档分片 -->
+        <div class="card" id="chunks-card" style="display: none;">
+            <h2>✂️ 步骤 2: 文档分片</h2>
+            <span class="status-badge info" id="chunks-count"></span>
+            <div class="chunk-list" id="chunks-list"></div>
+        </div>
+
+        <!-- 搜索查询 -->
+        <div class="card" id="search-card" style="display: none;">
+            <h2>🔎 步骤 3: 搜索 & 召回</h2>
+            <input type="text" id="query-input" placeholder="请输入您的问题...">
+            <div class="btn-group">
+                <button class="btn" id="search-btn" onclick="search()">搜索</button>
+            </div>
+            <div class="loading" id="search-loading">检索中...</div>
+        </div>
+
+        <!-- 召回结果 -->
+        <div class="card" id="retrieved-card" style="display: none;">
+            <h2>📥 召回结果</h2>
+            <span class="status-badge info" id="retrieved-count"></span>
+            <div class="chunk-list" id="retrieved-list"></div>
+        </div>
+
+        <!-- 重排结果 -->
+        <div class="card" id="reranked-card" style="display: none;">
+            <h2>🔄 步骤 4: 重排结果</h2>
+            <span class="status-badge info" id="reranked-count"></span>
+            <div class="chunk-list" id="reranked-list"></div>
+            <div class="btn-group">
+                <button class="btn" id="generate-btn" onclick="generate()">生成答案</button>
+            </div>
+            <div class="loading" id="generate-loading">生成中...</div>
+        </div>
+
+        <!-- 生成答案 -->
+        <div class="card" id="answer-card" style="display: none;">
+            <h2>💡 步骤 5: 生成答案</h2>
+            <div class="answer-box" id="answer"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '';
+
+        function showMessage(text, type = 'success') {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `show ${type}`;
+            setTimeout(() => msg.className = '', 3000);
+        }
+
+        function updateSteps(current) {
+            for (let i = 1; i <= 5; i++) {
+                const step = document.getElementById(`step-${i}`);
+                step.className = 'step';
+                if (i < current) step.classList.add('completed');
+                else if (i === current) step.classList.add('active');
+            }
+        }
+
+        async function loadDocument() {
+            const btn = document.getElementById('load-btn');
+            const loading = document.getElementById('load-loading');
+            btn.disabled = true;
+            loading.classList.add('show');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/load_doc`, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.success) {
+                    showMessage(data.message);
+                    updateSteps(2);
+                    displayChunks(data.chunks_count);
+                    document.getElementById('search-card').style.display = 'block';
+                    document.getElementById('step-2').classList.add('completed');
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('加载失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loading.classList.remove('show');
+            }
+        }
+
+        function displayChunks(count) {
+            document.getElementById('chunks-card').style.display = 'block';
+            document.getElementById('chunks-count').textContent = `共 ${count} 个分片`;
+
+            fetch(`${API_BASE}/api/state`)
+                .then(res => res.json())
+                .then(data => {
+                    const list = document.getElementById('chunks-list');
+                    list.innerHTML = data.chunks.map(c => `
+                        <div class="chunk-item">
+                            <div class="id">分片 ${c.id}</div>
+                            <div class="content">${c.preview}</div>
+                        </div>
+                    `).join('');
+                });
+        }
+
+        async function search() {
+            const query = document.getElementById('query-input').value.trim();
+            if (!query) {
+                showMessage('请输入查询内容', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('search-btn');
+            const loading = document.getElementById('search-loading');
+            btn.disabled = true;
+            loading.classList.add('show');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    updateSteps(3);
+                    displayRetrievedChunks();
+                    document.getElementById('step-3').classList.add('completed');
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('搜索失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loading.classList.remove('show');
+            }
+        }
+
+        function displayRetrievedChunks() {
+            fetch(`${API_BASE}/api/state`)
+                .then(res => res.json())
+                .then(data => {
+                    // 召回结果
+                    document.getElementById('retrieved-card').style.display = 'block';
+                    document.getElementById('retrieved-count').textContent = `召回 ${data.retrieved_chunks.length} 条`;
+                    document.getElementById('retrieved-list').innerHTML = data.retrieved_chunks.map(c => `
+                        <div class="chunk-item">
+                            <div class="id">分片 ${c.id} | 相似度: ${c.score}</div>
+                            <div class="content">${c.content}</div>
+                        </div>
+                    `).join('');
+
+                    // 重排结果
+                    document.getElementById('reranked-card').style.display = 'block';
+                    document.getElementById('reranked-count').textContent = `重排后 ${data.reranked_chunks.length} 条`;
+                    document.getElementById('reranked-list').innerHTML = data.reranked_chunks.map(c => `
+                        <div class="chunk-item">
+                            <div class="id">分片 ${c.id} | 重排得分: ${c.rerank_score}</div>
+                            <div class="content">${c.content}</div>
+                        </div>
+                    `).join('');
+
+                    updateSteps(4);
+                    document.getElementById('step-4').classList.add('completed');
+                });
+        }
+
+        async function generate() {
+            const query = document.getElementById('query-input').value.trim();
+            const btn = document.getElementById('generate-btn');
+            const loading = document.getElementById('generate-loading');
+            btn.disabled = true;
+            loading.classList.add('show');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    updateSteps(5);
+                    document.getElementById('answer-card').style.display = 'block';
+                    document.getElementById('answer').textContent = data.answer;
+                    document.getElementById('step-5').classList.add('completed');
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (err) {
+                showMessage('生成失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loading.classList.remove('show');
+            }
+        }
+
+        async function resetState() {
+            await fetch(`${API_BASE}/api/reset`, { method: 'POST' });
+            location.reload();
+        }
+    </script>
+</body>
+</html>

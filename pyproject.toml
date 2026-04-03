@@ -1,0 +1,15 @@
+[project]
+name = "rag"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "chromadb>=1.0.15",
+    "flask>=3.1.0",
+    "flask-cors>=5.0.1",
+    "google-genai>=1.24.0",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.3",
+    "sentence-transformers>=5.0.0",
+]
